@@ -453,7 +453,7 @@ HTML = '''<!DOCTYPE html>
         <div id="toolbar">
             <button id="clear">Clear</button>
             <button id="mode" class="mode-btn active">Curve</button>
-            <button id="geometry" class="mode-btn">Conic</button>
+            <button id="geometry" class="mode-btn">Conics</button>
             <button id="polygon">Polygon</button>
             <button id="toggleStroke">Hide Stroke</button>
             <button id="zoomOut">-</button>
