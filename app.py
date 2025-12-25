@@ -387,12 +387,15 @@ HTML = '''<!DOCTYPE html>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, sans-serif; background: #f5f5f5; overflow: hidden; }
         #container { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
-        #toolbar { background: white; padding: 12px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        #toolbar { background: white; padding: 12px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; position: relative; }
         button { padding: 8px 16px; border: none; border-radius: 8px; background: #007AFF; color: white; font-size: 14px; cursor: pointer; }
-        button:active { background: #0051D5; }
+        button:active { opacity: 0.8; }
         #clear { background: #FF3B30; }
-        .tool-btn { background: #34C759; }
-        .tool-btn.active { background: #248A3D; box-shadow: 0 0 0 3px rgba(36,138,61,0.3); }
+        #undo, #redo { background: #5856D6; padding: 8px 12px; font-size: 16px; }
+        #mode { background: #007AFF; }
+        #mode.active { background: #0051D5; box-shadow: 0 0 0 3px rgba(0,81,213,0.3); }
+        #geometry { background: #FF9500; }
+        #geometry.active { background: #CC7700; box-shadow: 0 0 0 3px rgba(204,119,0,0.3); }
         #polygon { background: #AF52DE; }
         #polygon.active { background: #8B3DB0; box-shadow: 0 0 0 3px rgba(139,61,176,0.3); }
         #freehand { background: #000; }
@@ -405,6 +408,7 @@ HTML = '''<!DOCTYPE html>
         .color-opt { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s; }
         .color-opt:hover { transform: scale(1.15); }
         .color-opt.selected { border-color: #007AFF; }
+        #langBtn { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: #5856D6; padding: 6px 12px; font-size: 12px; }
         #canvasContainer { flex: 1; position: relative; overflow: hidden; background: white; touch-action: none; }
         #canvas { position: absolute; top: 0; left: 0; touch-action: none; }
         #status { padding: 8px; background: #fff; border-top: 1px solid #ddd; text-align: center; font-size: 13px; color: #666; }
@@ -414,8 +418,10 @@ HTML = '''<!DOCTYPE html>
     <div id="container">
         <div id="toolbar">
             <button id="clear">Clear</button>
-            <button id="mode" class="tool-btn active">Curve</button>
-            <button id="geometry" class="tool-btn">Conic</button>
+            <button id="undo" title="Undo">↶</button>
+            <button id="redo" title="Redo">↷</button>
+            <button id="mode">Curve</button>
+            <button id="geometry">Conic</button>
             <button id="polygon">Polygon</button>
             <button id="toggleStroke">Hide Stroke</button>
             <button id="zoomOut" class="zoom-btn">−</button>
@@ -424,6 +430,7 @@ HTML = '''<!DOCTYPE html>
             <button id="resetZoom" class="zoom-btn">Reset</button>
             <button id="freehand">Freehand</button>
             <div id="colorPicker"></div>
+            <button id="langBtn">Language</button>
         </div>
         <div id="canvasContainer">
             <canvas id="canvas"></canvas>
@@ -435,6 +442,49 @@ HTML = '''<!DOCTYPE html>
         const ctx = canvas.getContext('2d');
         const status = document.getElementById('status');
         const colorPickerDiv = document.getElementById('colorPicker');
+        
+        // 语言系统
+        let lang = 'en';
+        const texts = {
+            en: {
+                clear: 'Clear', curve: 'Curve', conic: 'Conic', polygon: 'Polygon',
+                hideStroke: 'Hide Stroke', showStroke: 'Show Stroke', reset: 'Reset',
+                freehand: 'Freehand', freehandColor: 'Freehand-change color',
+                edit: 'Edit', lang: 'Language',
+                statusDefault: 'Select a tool and draw on the canvas',
+                statusCleared: 'Canvas cleared',
+                statusFreehand: 'Freehand stroke added',
+                statusCurve: 'Curve: draw and hold 0.5s to fit',
+                statusConic: 'Conic: draw and hold 0.5s to recognize',
+                statusPolygon: 'Polygon: draw and hold 0.5s to recognize',
+                statusFreehandTip: 'Freehand: draw freely, click again for colors',
+                fitted: 'Fitted', segments: 'segment(s)', recognized: 'Recognized'
+            },
+            zh: {
+                clear: '清除', curve: '曲线', conic: '圆锥曲线', polygon: '正多边形',
+                hideStroke: '隐藏笔迹', showStroke: '显示笔迹', reset: '重置缩放',
+                freehand: '手写', freehandColor: '手写-改变颜色',
+                edit: '编辑', lang: '语言',
+                statusDefault: '选择工具并在画布上绘制',
+                statusCleared: '画布已清除',
+                statusFreehand: '已添加手写笔画',
+                statusCurve: '曲线：绘制并保持0.5秒以拟合',
+                statusConic: '圆锥曲线：绘制并保持0.5秒以识别',
+                statusPolygon: '正多边形：绘制并保持0.5秒以识别',
+                statusFreehandTip: '手写：自由绘制，再次点击选择颜色',
+                fitted: '已拟合', segments: '段', recognized: '已识别'
+            }
+        };
+        
+        function t(key) { return texts[lang][key] || key; }
+        
+        function updateLanguage() {
+            document.getElementById('clear').textContent = t('clear');
+            document.getElementById('resetZoom').textContent = t('reset');
+            document.getElementById('langBtn').textContent = t('lang');
+            document.getElementById('toggleStroke').textContent = showStroke ? t('hideStroke') : t('showStroke');
+            updateButtons();
+        }
         
         const colors = ['#000000','#FF3B30','#FF9500','#FFCC00','#34C759','#007AFF','#5856D6','#AF52DE','#FF2D55','#8E8E93'];
         colors.forEach((c, i) => {
@@ -453,9 +503,10 @@ HTML = '''<!DOCTYPE html>
         let editMode = false;
         let showStroke = true;
         let freehandColor = '#000000';
+        let colorPickerVisible = false;
         
-        // 存储所有笔画
         let allStrokes = [];
+        let redoStack = [];
         let currentPoints = [];
         let editingStrokeIdx = -1;
         
@@ -467,12 +518,57 @@ HTML = '''<!DOCTYPE html>
             ['mode', 'geometry', 'polygon', 'freehand'].forEach(id => {
                 document.getElementById(id).classList.remove('active');
             });
-            const toolMap = {bezier: 'mode', geometry: 'geometry', polygon: 'polygon', freehand: 'freehand'};
-            document.getElementById(toolMap[currentTool]).classList.add('active');
             
-            document.getElementById('mode').textContent = currentTool === 'bezier' && editMode ? 'Curve ✎' : 'Curve';
-            document.getElementById('geometry').textContent = currentTool === 'geometry' && editMode ? 'Conic ✎' : 'Conic';
-            document.getElementById('polygon').textContent = currentTool === 'polygon' && editMode ? 'Polygon ✎' : 'Polygon';
+            const modeBtn = document.getElementById('mode');
+            const geometryBtn = document.getElementById('geometry');
+            const polygonBtn = document.getElementById('polygon');
+            const freehandBtn = document.getElementById('freehand');
+            
+            if (currentTool === 'bezier') {
+                modeBtn.classList.add('active');
+                if (editMode) {
+                    modeBtn.textContent = t('curve') + ' ✎';
+                } else if (allStrokes.some(s => s.tool === 'bezier' && s.result)) {
+                    modeBtn.textContent = t('edit');
+                } else {
+                    modeBtn.textContent = t('curve');
+                }
+            } else {
+                modeBtn.textContent = t('curve');
+            }
+            
+            if (currentTool === 'geometry') {
+                geometryBtn.classList.add('active');
+                if (editMode) {
+                    geometryBtn.textContent = t('conic') + ' ✎';
+                } else if (allStrokes.some(s => s.tool === 'geometry' && s.result)) {
+                    geometryBtn.textContent = t('edit');
+                } else {
+                    geometryBtn.textContent = t('conic');
+                }
+            } else {
+                geometryBtn.textContent = t('conic');
+            }
+            
+            if (currentTool === 'polygon') {
+                polygonBtn.classList.add('active');
+                if (editMode) {
+                    polygonBtn.textContent = t('polygon') + ' ✎';
+                } else if (allStrokes.some(s => s.tool === 'polygon' && s.result)) {
+                    polygonBtn.textContent = t('edit');
+                } else {
+                    polygonBtn.textContent = t('polygon');
+                }
+            } else {
+                polygonBtn.textContent = t('polygon');
+            }
+            
+            if (currentTool === 'freehand') {
+                freehandBtn.classList.add('active');
+                freehandBtn.textContent = colorPickerVisible ? t('freehand') : t('freehandColor');
+            } else {
+                freehandBtn.textContent = t('freehand');
+            }
         }
 
         function resize() {
@@ -495,13 +591,11 @@ HTML = '''<!DOCTYPE html>
             ctx.translate(offsetX / scale, offsetY / scale);
             ctx.scale(zoom, zoom);
             
-            // 绘制所有已保存的笔画
             allStrokes.forEach((stroke, idx) => {
                 const isEditing = editMode && idx === editingStrokeIdx;
                 drawStroke(stroke, isEditing);
             });
             
-            // 绘制当前正在画的笔画
             if (currentPoints.length > 0) {
                 ctx.strokeStyle = currentTool === 'freehand' ? freehandColor : '#999';
                 ctx.lineWidth = (currentTool === 'freehand' ? 3 : 2) / zoom;
@@ -517,7 +611,6 @@ HTML = '''<!DOCTYPE html>
         }
 
         function drawStroke(stroke, isEditing) {
-            // 绘制原始笔迹（非freehand且showStroke开启时）
             if (showStroke && stroke.points.length > 0 && stroke.tool !== 'freehand') {
                 ctx.strokeStyle = '#ccc';
                 ctx.lineWidth = 1.5 / zoom;
@@ -583,7 +676,7 @@ HTML = '''<!DOCTYPE html>
                 });
             } else if (stroke.tool === 'geometry' && stroke.result) {
                 const geo = stroke.result;
-                ctx.strokeStyle = '#007AFF';
+                ctx.strokeStyle = '#FF9500';
                 ctx.lineWidth = 3 / zoom;
                 
                 if (geo.type === 'circle') {
@@ -903,31 +996,29 @@ HTML = '''<!DOCTYPE html>
             if (e.pointerId !== activePointerId) return;
             
             if (!editMode && currentPoints.length > 2) {
+                redoStack = [];
                 if (currentTool === 'freehand') {
-                    // Freehand直接保存，不需要等待
                     allStrokes.push({
                         tool: 'freehand',
                         points: [...currentPoints],
                         result: null,
                         color: freehandColor
                     });
-                    status.textContent = 'Freehand stroke added';
+                    status.textContent = t('statusFreehand');
                 } else if (Date.now() - lastMove >= 500) {
-                    // 其他工具需要等待0.5秒
                     let result = null;
                     if (currentTool === 'bezier') {
                         const res = await fetch('/fit', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({points: currentPoints})});
                         result = await res.json();
-                        status.textContent = `Fitted ${result.segments.length} curve segment(s)`;
+                        status.textContent = `${t('fitted')} ${result.segments.length} ${t('segments')}`;
                     } else if (currentTool === 'geometry') {
                         const res = await fetch('/fit_geometry', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({points: currentPoints})});
                         result = await res.json();
-                        status.textContent = `Recognized: ${result.type}`;
+                        status.textContent = `${t('recognized')}: ${result.type}`;
                     } else if (currentTool === 'polygon') {
                         const res = await fetch('/fit_polygon', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({points: currentPoints})});
                         result = await res.json();
-                        const nameMap = {line: 'Line', circle: 'Circle', triangle: 'Triangle', square: 'Square', pentagon: 'Pentagon', hexagon: 'Hexagon', heptagon: 'Heptagon', octagon: 'Octagon'};
-                        status.textContent = `Recognized: ${nameMap[result.type] || result.type}`;
+                        status.textContent = `${t('recognized')}: ${result.type}`;
                     }
                     if (result) {
                         allStrokes.push({
@@ -938,6 +1029,7 @@ HTML = '''<!DOCTYPE html>
                         });
                     }
                 }
+                updateButtons();
             }
             
             currentPoints = [];
@@ -981,6 +1073,7 @@ HTML = '''<!DOCTYPE html>
 
         document.getElementById('clear').onclick = () => {
             allStrokes = [];
+            redoStack = [];
             currentPoints = [];
             editMode = false;
             editingStrokeIdx = -1;
@@ -988,9 +1081,30 @@ HTML = '''<!DOCTYPE html>
             offsetX = offsetY = 0;
             document.getElementById('zoomLevel').textContent = '100%';
             colorPickerDiv.classList.remove('show');
-            status.textContent = 'Canvas cleared';
+            colorPickerVisible = false;
+            status.textContent = t('statusCleared');
             updateButtons();
             draw();
+        };
+
+        document.getElementById('undo').onclick = () => {
+            if (allStrokes.length > 0) {
+                redoStack.push(allStrokes.pop());
+                if (editingStrokeIdx >= allStrokes.length) {
+                    editMode = false;
+                    editingStrokeIdx = -1;
+                }
+                updateButtons();
+                draw();
+            }
+        };
+
+        document.getElementById('redo').onclick = () => {
+            if (redoStack.length > 0) {
+                allStrokes.push(redoStack.pop());
+                updateButtons();
+                draw();
+            }
         };
 
         document.getElementById('mode').onclick = () => {
@@ -1005,7 +1119,8 @@ HTML = '''<!DOCTYPE html>
                 editMode = false;
                 editingStrokeIdx = -1;
                 colorPickerDiv.classList.remove('show');
-                status.textContent = 'Curve: draw and hold 0.5s to fit';
+                colorPickerVisible = false;
+                status.textContent = t('statusCurve');
             }
             updateButtons();
             draw();
@@ -1023,7 +1138,8 @@ HTML = '''<!DOCTYPE html>
                 editMode = false;
                 editingStrokeIdx = -1;
                 colorPickerDiv.classList.remove('show');
-                status.textContent = 'Conic: draw and hold 0.5s to recognize';
+                colorPickerVisible = false;
+                status.textContent = t('statusConic');
             }
             updateButtons();
             draw();
@@ -1041,7 +1157,8 @@ HTML = '''<!DOCTYPE html>
                 editMode = false;
                 editingStrokeIdx = -1;
                 colorPickerDiv.classList.remove('show');
-                status.textContent = 'Polygon: draw and hold 0.5s to recognize';
+                colorPickerVisible = false;
+                status.textContent = t('statusPolygon');
             }
             updateButtons();
             draw();
@@ -1049,12 +1166,15 @@ HTML = '''<!DOCTYPE html>
 
         document.getElementById('freehand').onclick = () => {
             if (currentTool === 'freehand') {
-                colorPickerDiv.classList.toggle('show');
+                colorPickerVisible = !colorPickerVisible;
+                colorPickerDiv.classList.toggle('show', colorPickerVisible);
             } else {
                 currentTool = 'freehand';
                 editMode = false;
                 editingStrokeIdx = -1;
-                status.textContent = 'Freehand: draw freely, click again for colors';
+                colorPickerVisible = false;
+                colorPickerDiv.classList.remove('show');
+                status.textContent = t('statusFreehandTip');
             }
             updateButtons();
             draw();
@@ -1062,7 +1182,7 @@ HTML = '''<!DOCTYPE html>
 
         document.getElementById('toggleStroke').onclick = () => {
             showStroke = !showStroke;
-            document.getElementById('toggleStroke').textContent = showStroke ? 'Hide Stroke' : 'Show Stroke';
+            document.getElementById('toggleStroke').textContent = showStroke ? t('hideStroke') : t('showStroke');
             draw();
         };
 
@@ -1094,6 +1214,13 @@ HTML = '''<!DOCTYPE html>
             document.getElementById('zoomLevel').textContent = '100%';
             draw();
         };
+
+        document.getElementById('langBtn').onclick = () => {
+            lang = lang === 'en' ? 'zh' : 'en';
+            updateLanguage();
+        };
+
+        updateLanguage();
     </script>
 </body>
 </html>'''
