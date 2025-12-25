@@ -620,6 +620,8 @@ HTML = '''<!DOCTYPE html>
             }
         }
 
+        let initialized = false;
+
         function resize() {
             const r = canvas.parentElement.getBoundingClientRect();
             const scale = window.devicePixelRatio || 2;
@@ -627,6 +629,13 @@ HTML = '''<!DOCTYPE html>
             canvas.height = r.height * scale;
             canvas.style.width = r.width + 'px';
             canvas.style.height = r.height + 'px';
+            
+            if (!initialized) {
+                offsetX = canvas.width / 2;
+                offsetY = canvas.height / 2;
+                initialized = true;
+            }
+            
             draw();
         }
         window.addEventListener('resize', resize);
@@ -1403,7 +1412,8 @@ HTML = '''<!DOCTYPE html>
 
         document.getElementById('resetZoom').onclick = () => {
             zoom = 1;
-            offsetX = offsetY = 0;
+            offsetX = canvas.width / 2;
+            offsetY = canvas.height / 2;
             document.getElementById('zoomLevel').textContent = '100%';
             draw();
         };
