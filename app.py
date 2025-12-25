@@ -443,7 +443,6 @@ HTML = '''<!DOCTYPE html>
         const status = document.getElementById('status');
         const colorPickerDiv = document.getElementById('colorPicker');
         
-        // 语言系统
         let lang = 'en';
         const texts = {
             en: {
@@ -486,7 +485,7 @@ HTML = '''<!DOCTYPE html>
             updateButtons();
         }
         
-        const colors = ['#000000','#FF3B30','#FF9500','#FFCC00','#34C759','#007AFF','#5856D6','#AF52DE','#FF2D55','#8E8E93'];
+        const colors = ['#000000','#FF3B30','#FF9500','#FFCC00','#34C759','#007AFF','#5856D6','#AF52DE','#8E8E93'];
         colors.forEach((c, i) => {
             const div = document.createElement('div');
             div.className = 'color-opt' + (i === 0 ? ' selected' : '');
@@ -506,13 +505,63 @@ HTML = '''<!DOCTYPE html>
         let colorPickerVisible = false;
         
         let allStrokes = [];
-        let redoStack = [];
         let currentPoints = [];
         let editingStrokeIdx = -1;
+        
+        // 历史记录系统
+        let historyStack = [];
+        let historyIndex = -1;
+        const MAX_HISTORY = 50;
         
         let zoom = 1, offsetX = 0, offsetY = 0;
         let dragging = null, panning = false, lastX = 0, lastY = 0, lastMove = 0;
         let activePointerId = null;
+        
+        // 网格单位大小（像素），100%缩放时1格=50像素=1单位
+        const BASE_GRID_SIZE = 50;
+
+        function saveState() {
+            const state = JSON.stringify({
+                allStrokes: allStrokes,
+                editMode: editMode,
+                editingStrokeIdx: editingStrokeIdx,
+                currentTool: currentTool
+            });
+            // 删除当前位置之后的历史
+            historyStack = historyStack.slice(0, historyIndex + 1);
+            historyStack.push(state);
+            if (historyStack.length > MAX_HISTORY) {
+                historyStack.shift();
+            }
+            historyIndex = historyStack.length - 1;
+        }
+
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                restoreState(historyStack[historyIndex]);
+            }
+        }
+
+        function redo() {
+            if (historyIndex < historyStack.length - 1) {
+                historyIndex++;
+                restoreState(historyStack[historyIndex]);
+            }
+        }
+
+        function restoreState(stateStr) {
+            const state = JSON.parse(stateStr);
+            allStrokes = state.allStrokes;
+            editMode = state.editMode;
+            editingStrokeIdx = state.editingStrokeIdx;
+            currentTool = state.currentTool;
+            updateButtons();
+            draw();
+        }
+
+        // 初始化历史记录
+        saveState();
 
         function updateButtons() {
             ['mode', 'geometry', 'polygon', 'freehand'].forEach(id => {
@@ -583,11 +632,138 @@ HTML = '''<!DOCTYPE html>
         window.addEventListener('resize', resize);
         resize();
 
+        function drawGrid() {
+            const scale = window.devicePixelRatio || 2;
+            const w = canvas.width / scale;
+            const h = canvas.height / scale;
+            
+            // 计算画布中心在世界坐标中的位置
+            const centerX = (w / 2 - offsetX / scale) / zoom;
+            const centerY = (h / 2 - offsetY / scale) / zoom;
+            
+            // 原点在屏幕上的位置
+            const originScreenX = offsetX / scale;
+            const originScreenY = offsetY / scale;
+            
+            // 根据缩放计算网格间距
+            let gridSize = BASE_GRID_SIZE;
+            let gridStep = 1;
+            
+            // 调整网格大小使其始终可见且合理
+            const scaledGridSize = gridSize * zoom;
+            if (scaledGridSize < 20) {
+                const factor = Math.pow(2, Math.ceil(Math.log2(20 / scaledGridSize)));
+                gridSize *= factor;
+                gridStep *= factor;
+            } else if (scaledGridSize > 100) {
+                const factor = Math.pow(2, Math.floor(Math.log2(scaledGridSize / 50)));
+                gridSize /= factor;
+                gridStep /= factor;
+            }
+            
+            const actualGridSize = gridSize * zoom;
+            
+            // 计算可见范围
+            const startX = Math.floor(-originScreenX / actualGridSize) * actualGridSize;
+            const startY = Math.floor(-originScreenY / actualGridSize) * actualGridSize;
+            const endX = w - originScreenX;
+            const endY = h - originScreenY;
+            
+            // 绘制小网格线
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            
+            for (let x = startX; x <= endX; x += actualGridSize) {
+                const screenX = originScreenX + x;
+                if (Math.abs(x) > 0.001) {
+                    ctx.moveTo(screenX, 0);
+                    ctx.lineTo(screenX, h);
+                }
+            }
+            for (let y = startY; y <= endY; y += actualGridSize) {
+                const screenY = originScreenY + y;
+                if (Math.abs(y) > 0.001) {
+                    ctx.moveTo(0, screenY);
+                    ctx.lineTo(w, screenY);
+                }
+            }
+            ctx.stroke();
+            
+            // 绘制坐标轴（加粗）
+            ctx.strokeStyle = '#888';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // Y轴
+            if (originScreenX >= 0 && originScreenX <= w) {
+                ctx.moveTo(originScreenX, 0);
+                ctx.lineTo(originScreenX, h);
+            }
+            // X轴
+            if (originScreenY >= 0 && originScreenY <= h) {
+                ctx.moveTo(0, originScreenY);
+                ctx.lineTo(w, originScreenY);
+            }
+            ctx.stroke();
+            
+            // 绘制坐标数字
+            ctx.fillStyle = '#888';
+            ctx.font = '11px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            
+            // X轴数字
+            for (let x = startX; x <= endX; x += actualGridSize) {
+                const screenX = originScreenX + x;
+                const value = Math.round(x / (BASE_GRID_SIZE * zoom) * 10) / 10;
+                if (Math.abs(value) > 0.001 && screenX >= 20 && screenX <= w - 20) {
+                    const labelY = Math.min(Math.max(originScreenY + 5, 5), h - 15);
+                    ctx.fillText(value.toString(), screenX, labelY);
+                }
+            }
+            
+            // Y轴数字（注意Y轴方向相反）
+            ctx.textAlign = 'right';
+            ctx.textBaseline = 'middle';
+            for (let y = startY; y <= endY; y += actualGridSize) {
+                const screenY = originScreenY + y;
+                const value = -Math.round(y / (BASE_GRID_SIZE * zoom) * 10) / 10;
+                if (Math.abs(value) > 0.001 && screenY >= 15 && screenY <= h - 15) {
+                    const labelX = Math.min(Math.max(originScreenX - 5, 25), w - 5);
+                    ctx.fillText(value.toString(), labelX, screenY);
+                }
+            }
+            
+            // 绘制 x 和 y 标签
+            ctx.fillStyle = '#aaa';
+            ctx.font = 'italic 14px -apple-system, sans-serif';
+            
+            // y 标签（Y轴顶端左侧）
+            if (originScreenX >= 0 && originScreenX <= w) {
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                ctx.fillText('y', originScreenX - 8, 8);
+            }
+            
+            // x 标签（X轴右端下方）
+            if (originScreenY >= 0 && originScreenY <= h) {
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'top';
+                ctx.fillText('x', w - 8, originScreenY + 8);
+            }
+        }
+
         function draw() {
             const scale = window.devicePixelRatio || 2;
             ctx.setTransform(1, 0, 0, 1, 0, 0);
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.scale(scale, scale);
+            
+            // 先绘制网格（不受变换影响）
+            drawGrid();
+            
+            // 应用变换绘制笔画
+            ctx.save();
             ctx.translate(offsetX / scale, offsetY / scale);
             ctx.scale(zoom, zoom);
             
@@ -608,6 +784,8 @@ HTML = '''<!DOCTYPE html>
                 }
                 ctx.stroke();
             }
+            
+            ctx.restore();
         }
 
         function drawStroke(stroke, isEditing) {
@@ -892,6 +1070,8 @@ HTML = '''<!DOCTYPE html>
             }
         }
 
+        let dragStartState = null;
+
         canvas.addEventListener('pointerdown', e => {
             e.preventDefault();
             if (activePointerId !== null) return;
@@ -904,6 +1084,15 @@ HTML = '''<!DOCTYPE html>
             
             if (editMode && editingStrokeIdx >= 0) {
                 dragging = findControlPoint(x, y);
+                if (dragging) {
+                    // 保存拖拽开始前的状态
+                    dragStartState = JSON.stringify({
+                        allStrokes: allStrokes,
+                        editMode: editMode,
+                        editingStrokeIdx: editingStrokeIdx,
+                        currentTool: currentTool
+                    });
+                }
                 if (!dragging) panning = true;
             } else {
                 currentPoints = [[x, y]];
@@ -995,8 +1184,26 @@ HTML = '''<!DOCTYPE html>
             e.preventDefault();
             if (e.pointerId !== activePointerId) return;
             
+            // 如果有拖拽操作，保存状态
+            if (dragging && dragStartState) {
+                // 先恢复到拖拽前状态加入历史
+                const currentState = JSON.stringify({
+                    allStrokes: allStrokes,
+                    editMode: editMode,
+                    editingStrokeIdx: editingStrokeIdx,
+                    currentTool: currentTool
+                });
+                // 删除当前位置之后的历史
+                historyStack = historyStack.slice(0, historyIndex + 1);
+                historyStack.push(currentState);
+                if (historyStack.length > MAX_HISTORY) {
+                    historyStack.shift();
+                }
+                historyIndex = historyStack.length - 1;
+                dragStartState = null;
+            }
+            
             if (!editMode && currentPoints.length > 2) {
-                redoStack = [];
                 if (currentTool === 'freehand') {
                     allStrokes.push({
                         tool: 'freehand',
@@ -1004,6 +1211,7 @@ HTML = '''<!DOCTYPE html>
                         result: null,
                         color: freehandColor
                     });
+                    saveState();
                     status.textContent = t('statusFreehand');
                 } else if (Date.now() - lastMove >= 500) {
                     let result = null;
@@ -1027,6 +1235,7 @@ HTML = '''<!DOCTYPE html>
                             result: result,
                             color: null
                         });
+                        saveState();
                     }
                 }
                 updateButtons();
@@ -1046,6 +1255,7 @@ HTML = '''<!DOCTYPE html>
                 dragging = null;
                 panning = false;
                 currentPoints = [];
+                dragStartState = null;
             }
         });
 
@@ -1073,7 +1283,6 @@ HTML = '''<!DOCTYPE html>
 
         document.getElementById('clear').onclick = () => {
             allStrokes = [];
-            redoStack = [];
             currentPoints = [];
             editMode = false;
             editingStrokeIdx = -1;
@@ -1083,29 +1292,13 @@ HTML = '''<!DOCTYPE html>
             colorPickerDiv.classList.remove('show');
             colorPickerVisible = false;
             status.textContent = t('statusCleared');
+            saveState();
             updateButtons();
             draw();
         };
 
-        document.getElementById('undo').onclick = () => {
-            if (allStrokes.length > 0) {
-                redoStack.push(allStrokes.pop());
-                if (editingStrokeIdx >= allStrokes.length) {
-                    editMode = false;
-                    editingStrokeIdx = -1;
-                }
-                updateButtons();
-                draw();
-            }
-        };
-
-        document.getElementById('redo').onclick = () => {
-            if (redoStack.length > 0) {
-                allStrokes.push(redoStack.pop());
-                updateButtons();
-                draw();
-            }
-        };
+        document.getElementById('undo').onclick = undo;
+        document.getElementById('redo').onclick = redo;
 
         document.getElementById('mode').onclick = () => {
             if (currentTool === 'bezier') {
