@@ -1296,7 +1296,8 @@ HTML = '''<!DOCTYPE html>
             editMode = false;
             editingStrokeIdx = -1;
             zoom = 1;
-            offsetX = offsetY = 0;
+                offsetX = canvas.width / 2;
+                offsetY = canvas.height / 2;
             document.getElementById('zoomLevel').textContent = '100%';
             colorPickerDiv.classList.remove('show');
             colorPickerVisible = false;
