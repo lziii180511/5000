@@ -457,6 +457,7 @@ HTML = '''<!DOCTYPE html>
                 statusConic: 'Conic: draw and hold 0.5s to recognize',
                 statusPolygon: 'Polygon: draw and hold 0.5s to recognize',
                 statusFreehandTip: 'Freehand: draw freely, click again for colors',
+                statusPan: 'Pan: Shift+drag or two-finger drag',
                 fitted: 'Fitted', segments: 'segment(s)', recognized: 'Recognized'
             },
             zh: {
@@ -471,6 +472,7 @@ HTML = '''<!DOCTYPE html>
                 statusConic: '圆锥曲线：绘制并保持0.5秒以识别',
                 statusPolygon: '正多边形：绘制并保持0.5秒以识别',
                 statusFreehandTip: '手写：自由绘制，再次点击选择颜色',
+                statusPan: '平移：Shift+拖动 或 双指拖动',
                 fitted: '已拟合', segments: '段', recognized: '已识别'
             }
         };
@@ -517,6 +519,12 @@ HTML = '''<!DOCTYPE html>
         let dragging = null, panning = false, lastX = 0, lastY = 0, lastMove = 0;
         let activePointerId = null;
         
+        // 多点触控支持
+        let activeTouches = {};
+        let isPinching = false;
+        let lastPinchDist = 0;
+        let lastPinchCenter = { x: 0, y: 0 };
+        
         // 网格单位大小（像素），100%缩放时1格=50像素=1单位
         const BASE_GRID_SIZE = 50;
 
@@ -527,7 +535,6 @@ HTML = '''<!DOCTYPE html>
                 editingStrokeIdx: editingStrokeIdx,
                 currentTool: currentTool
             });
-            // 删除当前位置之后的历史
             historyStack = historyStack.slice(0, historyIndex + 1);
             historyStack.push(state);
             if (historyStack.length > MAX_HISTORY) {
@@ -560,7 +567,6 @@ HTML = '''<!DOCTYPE html>
             draw();
         }
 
-        // 初始化历史记录
         saveState();
 
         function updateButtons() {
@@ -646,39 +652,27 @@ HTML = '''<!DOCTYPE html>
             const w = canvas.width / scale;
             const h = canvas.height / scale;
             
-            // 计算画布中心在世界坐标中的位置
-            const centerX = (w / 2 - offsetX / scale) / zoom;
-            const centerY = (h / 2 - offsetY / scale) / zoom;
-            
-            // 原点在屏幕上的位置
             const originScreenX = offsetX / scale;
             const originScreenY = offsetY / scale;
             
-            // 根据缩放计算网格间距
             let gridSize = BASE_GRID_SIZE;
-            let gridStep = 1;
             
-            // 调整网格大小使其始终可见且合理
             const scaledGridSize = gridSize * zoom;
             if (scaledGridSize < 20) {
                 const factor = Math.pow(2, Math.ceil(Math.log2(20 / scaledGridSize)));
                 gridSize *= factor;
-                gridStep *= factor;
             } else if (scaledGridSize > 100) {
                 const factor = Math.pow(2, Math.floor(Math.log2(scaledGridSize / 50)));
                 gridSize /= factor;
-                gridStep /= factor;
             }
             
             const actualGridSize = gridSize * zoom;
             
-            // 计算可见范围
             const startX = Math.floor(-originScreenX / actualGridSize) * actualGridSize;
             const startY = Math.floor(-originScreenY / actualGridSize) * actualGridSize;
             const endX = w - originScreenX;
             const endY = h - originScreenY;
             
-            // 绘制小网格线
             ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 0.5;
             ctx.beginPath();
@@ -699,29 +693,24 @@ HTML = '''<!DOCTYPE html>
             }
             ctx.stroke();
             
-            // 绘制坐标轴（加粗）
             ctx.strokeStyle = '#888';
             ctx.lineWidth = 2;
             ctx.beginPath();
-            // Y轴
             if (originScreenX >= 0 && originScreenX <= w) {
                 ctx.moveTo(originScreenX, 0);
                 ctx.lineTo(originScreenX, h);
             }
-            // X轴
             if (originScreenY >= 0 && originScreenY <= h) {
                 ctx.moveTo(0, originScreenY);
                 ctx.lineTo(w, originScreenY);
             }
             ctx.stroke();
             
-            // 绘制坐标数字
             ctx.fillStyle = '#888';
             ctx.font = '11px -apple-system, sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
             
-            // X轴数字
             for (let x = startX; x <= endX; x += actualGridSize) {
                 const screenX = originScreenX + x;
                 const value = Math.round(x / (BASE_GRID_SIZE * zoom) * 10) / 10;
@@ -731,7 +720,6 @@ HTML = '''<!DOCTYPE html>
                 }
             }
             
-            // Y轴数字（注意Y轴方向相反）
             ctx.textAlign = 'right';
             ctx.textBaseline = 'middle';
             for (let y = startY; y <= endY; y += actualGridSize) {
@@ -743,18 +731,15 @@ HTML = '''<!DOCTYPE html>
                 }
             }
             
-            // 绘制 x 和 y 标签
             ctx.fillStyle = '#aaa';
             ctx.font = 'italic 14px -apple-system, sans-serif';
             
-            // y 标签（Y轴顶端左侧）
             if (originScreenX >= 0 && originScreenX <= w) {
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'top';
                 ctx.fillText('y', originScreenX - 8, 8);
             }
             
-            // x 标签（X轴右端下方）
             if (originScreenY >= 0 && originScreenY <= h) {
                 ctx.textAlign = 'right';
                 ctx.textBaseline = 'top';
@@ -768,10 +753,8 @@ HTML = '''<!DOCTYPE html>
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.scale(scale, scale);
             
-            // 先绘制网格（不受变换影响）
             drawGrid();
             
-            // 应用变换绘制笔画
             ctx.save();
             ctx.translate(offsetX / scale, offsetY / scale);
             ctx.scale(zoom, zoom);
@@ -1081,20 +1064,64 @@ HTML = '''<!DOCTYPE html>
 
         let dragStartState = null;
 
+        // 获取两个触摸点之间的距离
+        function getPinchDistance() {
+            const keys = Object.keys(activeTouches);
+            if (keys.length < 2) return 0;
+            const t1 = activeTouches[keys[0]];
+            const t2 = activeTouches[keys[1]];
+            return Math.hypot(t2.x - t1.x, t2.y - t1.y);
+        }
+
+        // 获取两个触摸点的中心
+        function getPinchCenter() {
+            const keys = Object.keys(activeTouches);
+            if (keys.length < 2) return { x: 0, y: 0 };
+            const t1 = activeTouches[keys[0]];
+            const t2 = activeTouches[keys[1]];
+            return { x: (t1.x + t2.x) / 2, y: (t1.y + t2.y) / 2 };
+        }
+
         canvas.addEventListener('pointerdown', e => {
             e.preventDefault();
-            if (activePointerId !== null) return;
+            
+            // 记录触摸点
+            activeTouches[e.pointerId] = { x: e.clientX, y: e.clientY };
+            const touchCount = Object.keys(activeTouches).length;
+            
+            // 双指触控 - 进入平移/缩放模式
+            if (touchCount === 2) {
+                isPinching = true;
+                lastPinchDist = getPinchDistance();
+                lastPinchCenter = getPinchCenter();
+                currentPoints = []; // 取消当前绘制
+                if (activePointerId !== null) {
+                    try { canvas.releasePointerCapture(activePointerId); } catch(ex) {}
+                }
+                activePointerId = null;
+                draw();
+                return;
+            }
+            
+            // 如果已经有活动的指针，忽略新的
+            if (activePointerId !== null && activePointerId !== e.pointerId) return;
+            
             activePointerId = e.pointerId;
-            canvas.setPointerCapture(e.pointerId);
+            try { canvas.setPointerCapture(e.pointerId); } catch(ex) {}
             
             const [x, y] = toCanvas(e.clientX, e.clientY);
             lastX = e.clientX;
             lastY = e.clientY;
             
+            // Shift键 + 鼠标 = 平移模式
+            if (e.shiftKey) {
+                panning = true;
+                return;
+            }
+            
             if (editMode && editingStrokeIdx >= 0) {
                 dragging = findControlPoint(x, y);
                 if (dragging) {
-                    // 保存拖拽开始前的状态
                     dragStartState = JSON.stringify({
                         allStrokes: allStrokes,
                         editMode: editMode,
@@ -1112,13 +1139,53 @@ HTML = '''<!DOCTYPE html>
 
         canvas.addEventListener('pointermove', e => {
             e.preventDefault();
+            
+            // 更新触摸点位置
+            if (activeTouches[e.pointerId]) {
+                activeTouches[e.pointerId] = { x: e.clientX, y: e.clientY };
+            }
+            
+            // 双指缩放/平移
+            if (isPinching && Object.keys(activeTouches).length >= 2) {
+                const newDist = getPinchDistance();
+                const newCenter = getPinchCenter();
+                const scale = window.devicePixelRatio || 2;
+                
+                // 缩放
+                if (lastPinchDist > 0 && newDist > 0) {
+                    const zoomFactor = newDist / lastPinchDist;
+                    const rect = canvas.getBoundingClientRect();
+                    const cx = (lastPinchCenter.x - rect.left) * scale;
+                    const cy = (lastPinchCenter.y - rect.top) * scale;
+                    
+                    const [ox, oy] = [(cx - offsetX) / zoom / scale, (cy - offsetY) / zoom / scale];
+                    zoom = Math.max(0.1, Math.min(5, zoom * zoomFactor));
+                    offsetX = cx - ox * zoom * scale;
+                    offsetY = cy - oy * zoom * scale;
+                }
+                
+                // 平移
+                const dx = newCenter.x - lastPinchCenter.x;
+                const dy = newCenter.y - lastPinchCenter.y;
+                offsetX += dx * scale;
+                offsetY += dy * scale;
+                
+                lastPinchDist = newDist;
+                lastPinchCenter = newCenter;
+                document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%';
+                draw();
+                return;
+            }
+            
+            // 单指操作
             if (activePointerId !== null && e.pointerId !== activePointerId) return;
             
             const [x, y] = toCanvas(e.clientX, e.clientY);
             
             if (panning) {
-                offsetX += e.clientX - lastX;
-                offsetY += e.clientY - lastY;
+                const scale = window.devicePixelRatio || 2;
+                offsetX += (e.clientX - lastX) * scale;
+                offsetY += (e.clientY - lastY) * scale;
                 lastX = e.clientX;
                 lastY = e.clientY;
                 draw();
@@ -1178,7 +1245,7 @@ HTML = '''<!DOCTYPE html>
                     updatePolygon(poly);
                 }
                 draw();
-            } else if (!editMode && currentPoints.length > 0 && activePointerId !== null) {
+            } else if (!editMode && currentPoints.length > 0 && activePointerId !== null && !isPinching) {
                 const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
                 for (const ce of events) {
                     const [cx, cy] = toCanvas(ce.clientX, ce.clientY);
@@ -1191,18 +1258,36 @@ HTML = '''<!DOCTYPE html>
 
         canvas.addEventListener('pointerup', async e => {
             e.preventDefault();
+            
+            // 移除触摸点
+            delete activeTouches[e.pointerId];
+            const touchCount = Object.keys(activeTouches).length;
+            
+            // 如果双指操作结束
+            if (isPinching && touchCount < 2) {
+                isPinching = false;
+                lastPinchDist = 0;
+                // 如果还有一个触摸点，不要开始绘制
+                if (touchCount === 1) {
+                    const remainingId = Object.keys(activeTouches)[0];
+                    activePointerId = parseInt(remainingId);
+                    lastX = activeTouches[remainingId].x;
+                    lastY = activeTouches[remainingId].y;
+                    panning = true; // 继续平移模式
+                }
+                return;
+            }
+            
             if (e.pointerId !== activePointerId) return;
             
             // 如果有拖拽操作，保存状态
             if (dragging && dragStartState) {
-                // 先恢复到拖拽前状态加入历史
                 const currentState = JSON.stringify({
                     allStrokes: allStrokes,
                     editMode: editMode,
                     editingStrokeIdx: editingStrokeIdx,
                     currentTool: currentTool
                 });
-                // 删除当前位置之后的历史
                 historyStack = historyStack.slice(0, historyIndex + 1);
                 historyStack.push(currentState);
                 if (historyStack.length > MAX_HISTORY) {
@@ -1212,7 +1297,7 @@ HTML = '''<!DOCTYPE html>
                 dragStartState = null;
             }
             
-            if (!editMode && currentPoints.length > 2) {
+            if (!editMode && currentPoints.length > 2 && !panning) {
                 if (currentTool === 'freehand') {
                     allStrokes.push({
                         tool: 'freehand',
@@ -1254,17 +1339,28 @@ HTML = '''<!DOCTYPE html>
             dragging = null;
             panning = false;
             activePointerId = null;
-            canvas.releasePointerCapture(e.pointerId);
+            try { canvas.releasePointerCapture(e.pointerId); } catch(ex) {}
             draw();
         });
 
         canvas.addEventListener('pointercancel', e => {
+            delete activeTouches[e.pointerId];
+            if (Object.keys(activeTouches).length < 2) {
+                isPinching = false;
+            }
             if (e.pointerId === activePointerId) {
                 activePointerId = null;
                 dragging = null;
                 panning = false;
                 currentPoints = [];
                 dragStartState = null;
+            }
+        });
+
+        canvas.addEventListener('pointerleave', e => {
+            delete activeTouches[e.pointerId];
+            if (Object.keys(activeTouches).length < 2) {
+                isPinching = false;
             }
         });
 
@@ -1276,9 +1372,13 @@ HTML = '''<!DOCTYPE html>
             e.preventDefault();
             const [ox, oy] = toCanvas(e.clientX, e.clientY);
             const scale = window.devicePixelRatio || 2;
+            const rect = canvas.getBoundingClientRect();
+            const cx = (e.clientX - rect.left) * scale;
+            const cy = (e.clientY - rect.top) * scale;
+            
             zoom = Math.max(0.1, Math.min(5, zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
-            offsetX = e.clientX * scale - ox * zoom * scale;
-            offsetY = e.clientY * scale - oy * zoom * scale;
+            offsetX = cx - ox * zoom * scale;
+            offsetY = cy - oy * zoom * scale;
             document.getElementById('zoomLevel').textContent = Math.round(zoom * 100) + '%';
             draw();
         }, {passive: false});
@@ -1296,8 +1396,8 @@ HTML = '''<!DOCTYPE html>
             editMode = false;
             editingStrokeIdx = -1;
             zoom = 1;
-                offsetX = canvas.width / 2;
-                offsetY = canvas.height / 2;
+            offsetX = canvas.width / 2;
+            offsetY = canvas.height / 2;
             document.getElementById('zoomLevel').textContent = '100%';
             colorPickerDiv.classList.remove('show');
             colorPickerVisible = false;
