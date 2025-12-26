@@ -387,31 +387,35 @@ HTML = '''<!DOCTYPE html>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, sans-serif; background: #f5f5f5; overflow: hidden; }
         #container { width: 100vw; height: 100vh; display: flex; flex-direction: column; }
-        #toolbar { background: white; padding: 12px 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; position: relative; }
-        button { padding: 8px 16px; border: none; border-radius: 8px; background: #007AFF; color: white; font-size: 14px; cursor: pointer; }
+        #toolbar { background: white; padding: 10px 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); display: flex; gap: 6px; flex-wrap: wrap; align-items: center; position: relative; }
+        button { padding: 6px 12px; border: none; border-radius: 6px; background: #007AFF; color: white; font-size: 12px; cursor: pointer; }
         button:active { opacity: 0.8; }
         #clear { background: #FF3B30; }
-        #undo, #redo { background: #5856D6; padding: 8px 12px; font-size: 16px; }
+        #undo, #redo { background: #5856D6; font-size: 14px; padding: 6px 10px; }
         #mode { background: #007AFF; }
-        #mode.active { background: #0051D5; box-shadow: 0 0 0 3px rgba(0,81,213,0.3); }
+        #mode.active { background: #0051D5; box-shadow: 0 0 0 2px rgba(0,81,213,0.3); }
         #geometry { background: #FF9500; }
-        #geometry.active { background: #CC7700; box-shadow: 0 0 0 3px rgba(204,119,0,0.3); }
+        #geometry.active { background: #CC7700; box-shadow: 0 0 0 2px rgba(204,119,0,0.3); }
         #polygon { background: #AF52DE; }
-        #polygon.active { background: #8B3DB0; box-shadow: 0 0 0 3px rgba(139,61,176,0.3); }
+        #polygon.active { background: #8B3DB0; box-shadow: 0 0 0 2px rgba(139,61,176,0.3); }
         #freehand { background: #000; }
-        #freehand.active { background: #333; box-shadow: 0 0 0 3px rgba(0,0,0,0.3); }
+        #freehand.active { background: #333; box-shadow: 0 0 0 2px rgba(0,0,0,0.3); }
+        #eraser { background: #1C1C1E; }
+        #eraser.active { background: #3A3A3C; box-shadow: 0 0 0 2px rgba(0,0,0,0.3); }
         #toggleStroke { background: #8E8E93; }
-        .zoom-btn { background: #5856D6; padding: 8px 12px; }
-        #zoomLevel { font-size: 12px; color: #666; min-width: 50px; text-align: center; }
-        #colorPicker { display: none; gap: 5px; align-items: center; }
+        #colorPicker { display: none; gap: 4px; align-items: center; }
         #colorPicker.show { display: flex; }
-        .color-opt { width: 24px; height: 24px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s; }
+        .color-opt { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; transition: transform 0.1s; }
         .color-opt:hover { transform: scale(1.15); }
         .color-opt.selected { border-color: #007AFF; }
-        #langBtn { position: absolute; right: 15px; top: 50%; transform: translateY(-50%); background: #5856D6; padding: 6px 12px; font-size: 12px; }
+        .right-buttons { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); display: flex; gap: 6px; align-items: center; }
         #canvasContainer { flex: 1; position: relative; overflow: hidden; background: white; touch-action: none; }
         #canvas { position: absolute; top: 0; left: 0; touch-action: none; }
-        #status { padding: 8px; background: #fff; border-top: 1px solid #ddd; text-align: center; font-size: 13px; color: #666; }
+        #eraserCursor { position: absolute; pointer-events: none; border: 2px solid #FF3B30; border-radius: 50%; display: none; z-index: 100; }
+        #zoomControls { position: absolute; bottom: 15px; right: 15px; display: flex; gap: 6px; align-items: center; background: rgba(255,255,255,0.95); padding: 8px 12px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.15); z-index: 50; }
+        #zoomControls button { background: #5856D6; }
+        #zoomLevel { font-size: 12px; color: #666; min-width: 45px; text-align: center; }
+        #status { padding: 6px; background: #fff; border-top: 1px solid #ddd; text-align: center; font-size: 12px; color: #666; }
     </style>
 </head>
 <body>
@@ -423,17 +427,23 @@ HTML = '''<!DOCTYPE html>
             <button id="mode">Curve</button>
             <button id="geometry">Conic</button>
             <button id="polygon">Polygon</button>
-            <button id="toggleStroke">Hide Stroke</button>
-            <button id="zoomOut" class="zoom-btn">−</button>
-            <span id="zoomLevel">100%</span>
-            <button id="zoomIn" class="zoom-btn">+</button>
-            <button id="resetZoom" class="zoom-btn">Reset</button>
             <button id="freehand">Freehand</button>
+            <button id="eraser">Eraser</button>
             <div id="colorPicker"></div>
-            <button id="langBtn">Language</button>
+            <div class="right-buttons">
+                <button id="toggleStroke">Hide Stroke</button>
+                <button id="langBtn">Language</button>
+            </div>
         </div>
         <div id="canvasContainer">
             <canvas id="canvas"></canvas>
+            <div id="eraserCursor"></div>
+            <div id="zoomControls">
+                <button id="zoomOut">−</button>
+                <span id="zoomLevel">100%</span>
+                <button id="zoomIn">+</button>
+                <button id="resetZoom">Reset</button>
+            </div>
         </div>
         <div id="status">Select a tool and draw on the canvas</div>
     </div>
@@ -442,13 +452,17 @@ HTML = '''<!DOCTYPE html>
         const ctx = canvas.getContext('2d');
         const status = document.getElementById('status');
         const colorPickerDiv = document.getElementById('colorPicker');
+        const eraserCursor = document.getElementById('eraserCursor');
+        
+        const ERASER_RADIUS = 15;
         
         let lang = 'en';
         const texts = {
             en: {
                 clear: 'Clear', curve: 'Curve', conic: 'Conic', polygon: 'Polygon',
                 hideStroke: 'Hide Stroke', showStroke: 'Show Stroke', reset: 'Reset',
-                freehand: 'Freehand', freehandColor: 'Freehand-change color',
+                freehand: 'Freehand', freehandColor: 'Freehand-color',
+                eraser: 'Eraser',
                 edit: 'Edit', lang: 'Language',
                 statusDefault: 'Select a tool and draw on the canvas',
                 statusCleared: 'Canvas cleared',
@@ -457,13 +471,14 @@ HTML = '''<!DOCTYPE html>
                 statusConic: 'Conic: draw and hold 0.5s to recognize',
                 statusPolygon: 'Polygon: draw and hold 0.5s to recognize',
                 statusFreehandTip: 'Freehand: draw freely, click again for colors',
-                statusPan: 'Pan: Shift+drag or two-finger drag',
+                statusEraser: 'Eraser: touch strokes to delete them',
                 fitted: 'Fitted', segments: 'segment(s)', recognized: 'Recognized'
             },
             zh: {
                 clear: '清除', curve: '曲线', conic: '圆锥曲线', polygon: '正多边形',
-                hideStroke: '隐藏笔迹', showStroke: '显示笔迹', reset: '重置缩放',
-                freehand: '手写', freehandColor: '手写-改变颜色',
+                hideStroke: '隐藏笔迹', showStroke: '显示笔迹', reset: '重置',
+                freehand: '手写', freehandColor: '手写-颜色',
+                eraser: '橡皮',
                 edit: '编辑', lang: '语言',
                 statusDefault: '选择工具并在画布上绘制',
                 statusCleared: '画布已清除',
@@ -472,7 +487,7 @@ HTML = '''<!DOCTYPE html>
                 statusConic: '圆锥曲线：绘制并保持0.5秒以识别',
                 statusPolygon: '正多边形：绘制并保持0.5秒以识别',
                 statusFreehandTip: '手写：自由绘制，再次点击选择颜色',
-                statusPan: '平移：Shift+拖动 或 双指拖动',
+                statusEraser: '橡皮：触碰笔画以删除',
                 fitted: '已拟合', segments: '段', recognized: '已识别'
             }
         };
@@ -484,6 +499,7 @@ HTML = '''<!DOCTYPE html>
             document.getElementById('resetZoom').textContent = t('reset');
             document.getElementById('langBtn').textContent = t('lang');
             document.getElementById('toggleStroke').textContent = showStroke ? t('hideStroke') : t('showStroke');
+            document.getElementById('eraser').textContent = t('eraser');
             updateButtons();
         }
         
@@ -510,7 +526,6 @@ HTML = '''<!DOCTYPE html>
         let currentPoints = [];
         let editingStrokeIdx = -1;
         
-        // 历史记录系统
         let historyStack = [];
         let historyIndex = -1;
         const MAX_HISTORY = 50;
@@ -519,13 +534,13 @@ HTML = '''<!DOCTYPE html>
         let dragging = null, panning = false, lastX = 0, lastY = 0, lastMove = 0;
         let activePointerId = null;
         
-        // 多点触控支持
         let activeTouches = {};
         let isPinching = false;
         let lastPinchDist = 0;
         let lastPinchCenter = { x: 0, y: 0 };
         
-        // 网格单位大小（像素），100%缩放时1格=50像素=1单位
+        let isErasing = false;
+        
         const BASE_GRID_SIZE = 50;
 
         function saveState() {
@@ -562,7 +577,6 @@ HTML = '''<!DOCTYPE html>
             allStrokes = state.allStrokes;
             editMode = state.editMode;
             editingStrokeIdx = state.editingStrokeIdx;
-            currentTool = state.currentTool;
             updateButtons();
             draw();
         }
@@ -570,7 +584,7 @@ HTML = '''<!DOCTYPE html>
         saveState();
 
         function updateButtons() {
-            ['mode', 'geometry', 'polygon', 'freehand'].forEach(id => {
+            ['mode', 'geometry', 'polygon', 'freehand', 'eraser'].forEach(id => {
                 document.getElementById(id).classList.remove('active');
             });
             
@@ -578,6 +592,7 @@ HTML = '''<!DOCTYPE html>
             const geometryBtn = document.getElementById('geometry');
             const polygonBtn = document.getElementById('polygon');
             const freehandBtn = document.getElementById('freehand');
+            const eraserBtn = document.getElementById('eraser');
             
             if (currentTool === 'bezier') {
                 modeBtn.classList.add('active');
@@ -624,6 +639,11 @@ HTML = '''<!DOCTYPE html>
             } else {
                 freehandBtn.textContent = t('freehand');
             }
+            
+            if (currentTool === 'eraser') {
+                eraserBtn.classList.add('active');
+            }
+            eraserBtn.textContent = t('eraser');
         }
 
         let initialized = false;
@@ -976,6 +996,15 @@ HTML = '''<!DOCTYPE html>
             return [(sx - offsetX) / zoom / scale, (sy - offsetY) / zoom / scale];
         }
 
+        function toScreen(canvasX, canvasY) {
+            const scale = window.devicePixelRatio || 2;
+            const r = canvas.getBoundingClientRect();
+            return [
+                canvasX * zoom + offsetX / scale + r.left,
+                canvasY * zoom + offsetY / scale + r.top
+            ];
+        }
+
         function findControlPoint(x, y) {
             if (editingStrokeIdx < 0) return null;
             const stroke = allStrokes[editingStrokeIdx];
@@ -1062,9 +1091,127 @@ HTML = '''<!DOCTYPE html>
             }
         }
 
+        // 检测点是否在笔画附近
+        function pointNearStroke(x, y, stroke, threshold) {
+            // 检查原始点
+            if (stroke.points && stroke.points.length > 0) {
+                for (let i = 0; i < stroke.points.length; i++) {
+                    if (Math.hypot(x - stroke.points[i][0], y - stroke.points[i][1]) < threshold) {
+                        return true;
+                    }
+                }
+                // 检查线段
+                for (let i = 0; i < stroke.points.length - 1; i++) {
+                    if (pointToSegmentDist(x, y, stroke.points[i], stroke.points[i+1]) < threshold) {
+                        return true;
+                    }
+                }
+            }
+            
+            // 检查拟合结果
+            if (stroke.tool === 'bezier' && stroke.result && stroke.result.segments) {
+                for (const seg of stroke.result.segments) {
+                    const [p0, p1, p2, p3] = seg.controls;
+                    for (let t = 0; t <= 1; t += 0.05) {
+                        const px = Math.pow(1-t,3)*p0[0] + 3*Math.pow(1-t,2)*t*p1[0] + 3*(1-t)*t*t*p2[0] + t*t*t*p3[0];
+                        const py = Math.pow(1-t,3)*p0[1] + 3*Math.pow(1-t,2)*t*p1[1] + 3*(1-t)*t*t*p2[1] + t*t*t*p3[1];
+                        if (Math.hypot(x - px, y - py) < threshold) return true;
+                    }
+                }
+            }
+            
+            if (stroke.tool === 'geometry' && stroke.result) {
+                const geo = stroke.result;
+                if (geo.type === 'circle') {
+                    const [cx, cy, r] = geo.params;
+                    const dist = Math.abs(Math.hypot(x - cx, y - cy) - r);
+                    if (dist < threshold) return true;
+                } else if (geo.type === 'ellipse') {
+                    const [h, k, a, b, theta] = geo.params;
+                    for (let ang = 0; ang < Math.PI * 2; ang += 0.1) {
+                        const px = h + a * Math.cos(ang) * Math.cos(theta) - b * Math.sin(ang) * Math.sin(theta);
+                        const py = k + a * Math.cos(ang) * Math.sin(theta) + b * Math.sin(ang) * Math.cos(theta);
+                        if (Math.hypot(x - px, y - py) < threshold) return true;
+                    }
+                } else if (geo.type === 'parabola') {
+                    const [a, b, c] = geo.params;
+                    const xMin = Math.min(geo.start[0], geo.end[0]);
+                    const xMax = Math.max(geo.start[0], geo.end[0]);
+                    for (let px = xMin; px <= xMax; px += 5) {
+                        const py = a * px * px + b * px + c;
+                        if (Math.hypot(x - px, y - py) < threshold) return true;
+                    }
+                }
+            }
+            
+            if (stroke.tool === 'polygon' && stroke.result) {
+                const poly = stroke.result;
+                if (poly.type === 'line') {
+                    if (pointToSegmentDist(x, y, poly.start, poly.end) < threshold) return true;
+                } else if (poly.type === 'circle') {
+                    const dist = Math.abs(Math.hypot(x - poly.center[0], y - poly.center[1]) - poly.radius);
+                    if (dist < threshold) return true;
+                } else if (poly.vertices) {
+                    for (let i = 0; i < poly.vertices.length; i++) {
+                        const next = (i + 1) % poly.vertices.length;
+                        if (pointToSegmentDist(x, y, poly.vertices[i], poly.vertices[next]) < threshold) return true;
+                    }
+                }
+            }
+            
+            return false;
+        }
+
+        function pointToSegmentDist(px, py, p1, p2) {
+            const dx = p2[0] - p1[0];
+            const dy = p2[1] - p1[1];
+            const len2 = dx * dx + dy * dy;
+            if (len2 === 0) return Math.hypot(px - p1[0], py - p1[1]);
+            let t = ((px - p1[0]) * dx + (py - p1[1]) * dy) / len2;
+            t = Math.max(0, Math.min(1, t));
+            const projX = p1[0] + t * dx;
+            const projY = p1[1] + t * dy;
+            return Math.hypot(px - projX, py - projY);
+        }
+
+        function eraseAtPoint(x, y) {
+            const threshold = ERASER_RADIUS / zoom;
+            let erased = false;
+            for (let i = allStrokes.length - 1; i >= 0; i--) {
+                if (pointNearStroke(x, y, allStrokes[i], threshold)) {
+                    allStrokes.splice(i, 1);
+                    erased = true;
+                }
+            }
+            if (erased) {
+                if (editingStrokeIdx >= allStrokes.length) {
+                    editingStrokeIdx = -1;
+                    editMode = false;
+                }
+                draw();
+            }
+            return erased;
+        }
+
+        function updateEraserCursor(clientX, clientY) {
+            const r = canvas.getBoundingClientRect();
+            const size = ERASER_RADIUS * 2;
+            eraserCursor.style.width = size + 'px';
+            eraserCursor.style.height = size + 'px';
+            eraserCursor.style.left = (clientX - r.left - ERASER_RADIUS) + 'px';
+            eraserCursor.style.top = (clientY - r.top - ERASER_RADIUS) + 'px';
+        }
+
+        function showEraserCursor() {
+            eraserCursor.style.display = 'block';
+        }
+
+        function hideEraserCursor() {
+            eraserCursor.style.display = 'none';
+        }
+
         let dragStartState = null;
 
-        // 获取两个触摸点之间的距离
         function getPinchDistance() {
             const keys = Object.keys(activeTouches);
             if (keys.length < 2) return 0;
@@ -1073,7 +1220,6 @@ HTML = '''<!DOCTYPE html>
             return Math.hypot(t2.x - t1.x, t2.y - t1.y);
         }
 
-        // 获取两个触摸点的中心
         function getPinchCenter() {
             const keys = Object.keys(activeTouches);
             if (keys.length < 2) return { x: 0, y: 0 };
@@ -1085,25 +1231,24 @@ HTML = '''<!DOCTYPE html>
         canvas.addEventListener('pointerdown', e => {
             e.preventDefault();
             
-            // 记录触摸点
             activeTouches[e.pointerId] = { x: e.clientX, y: e.clientY };
             const touchCount = Object.keys(activeTouches).length;
             
-            // 双指触控 - 进入平移/缩放模式
             if (touchCount === 2) {
                 isPinching = true;
                 lastPinchDist = getPinchDistance();
                 lastPinchCenter = getPinchCenter();
-                currentPoints = []; // 取消当前绘制
+                currentPoints = [];
                 if (activePointerId !== null) {
                     try { canvas.releasePointerCapture(activePointerId); } catch(ex) {}
                 }
                 activePointerId = null;
+                isErasing = false;
+                hideEraserCursor();
                 draw();
                 return;
             }
             
-            // 如果已经有活动的指针，忽略新的
             if (activePointerId !== null && activePointerId !== e.pointerId) return;
             
             activePointerId = e.pointerId;
@@ -1113,7 +1258,14 @@ HTML = '''<!DOCTYPE html>
             lastX = e.clientX;
             lastY = e.clientY;
             
-            // Shift键 + 鼠标 = 平移模式
+            if (currentTool === 'eraser') {
+                isErasing = true;
+                showEraserCursor();
+                updateEraserCursor(e.clientX, e.clientY);
+                eraseAtPoint(x, y);
+                return;
+            }
+            
             if (e.shiftKey) {
                 panning = true;
                 return;
@@ -1140,18 +1292,21 @@ HTML = '''<!DOCTYPE html>
         canvas.addEventListener('pointermove', e => {
             e.preventDefault();
             
-            // 更新触摸点位置
             if (activeTouches[e.pointerId]) {
                 activeTouches[e.pointerId] = { x: e.clientX, y: e.clientY };
             }
             
-            // 双指缩放/平移
+            // 橡皮擦工具时显示光标
+            if (currentTool === 'eraser' && !isPinching) {
+                showEraserCursor();
+                updateEraserCursor(e.clientX, e.clientY);
+            }
+            
             if (isPinching && Object.keys(activeTouches).length >= 2) {
                 const newDist = getPinchDistance();
                 const newCenter = getPinchCenter();
                 const scale = window.devicePixelRatio || 2;
                 
-                // 缩放
                 if (lastPinchDist > 0 && newDist > 0) {
                     const zoomFactor = newDist / lastPinchDist;
                     const rect = canvas.getBoundingClientRect();
@@ -1164,7 +1319,6 @@ HTML = '''<!DOCTYPE html>
                     offsetY = cy - oy * zoom * scale;
                 }
                 
-                // 平移
                 const dx = newCenter.x - lastPinchCenter.x;
                 const dy = newCenter.y - lastPinchCenter.y;
                 offsetX += dx * scale;
@@ -1177,10 +1331,15 @@ HTML = '''<!DOCTYPE html>
                 return;
             }
             
-            // 单指操作
             if (activePointerId !== null && e.pointerId !== activePointerId) return;
             
             const [x, y] = toCanvas(e.clientX, e.clientY);
+            
+            if (isErasing && currentTool === 'eraser') {
+                updateEraserCursor(e.clientX, e.clientY);
+                eraseAtPoint(x, y);
+                return;
+            }
             
             if (panning) {
                 const scale = window.devicePixelRatio || 2;
@@ -1259,28 +1418,32 @@ HTML = '''<!DOCTYPE html>
         canvas.addEventListener('pointerup', async e => {
             e.preventDefault();
             
-            // 移除触摸点
             delete activeTouches[e.pointerId];
             const touchCount = Object.keys(activeTouches).length;
             
-            // 如果双指操作结束
             if (isPinching && touchCount < 2) {
                 isPinching = false;
                 lastPinchDist = 0;
-                // 如果还有一个触摸点，不要开始绘制
                 if (touchCount === 1) {
                     const remainingId = Object.keys(activeTouches)[0];
                     activePointerId = parseInt(remainingId);
                     lastX = activeTouches[remainingId].x;
                     lastY = activeTouches[remainingId].y;
-                    panning = true; // 继续平移模式
+                    panning = true;
                 }
                 return;
             }
             
             if (e.pointerId !== activePointerId) return;
             
-            // 如果有拖拽操作，保存状态
+            if (isErasing) {
+                isErasing = false;
+                saveState();
+                activePointerId = null;
+                try { canvas.releasePointerCapture(e.pointerId); } catch(ex) {}
+                return;
+            }
+            
             if (dragging && dragStartState) {
                 const currentState = JSON.stringify({
                     allStrokes: allStrokes,
@@ -1354,6 +1517,7 @@ HTML = '''<!DOCTYPE html>
                 panning = false;
                 currentPoints = [];
                 dragStartState = null;
+                isErasing = false;
             }
         });
 
@@ -1361,6 +1525,16 @@ HTML = '''<!DOCTYPE html>
             delete activeTouches[e.pointerId];
             if (Object.keys(activeTouches).length < 2) {
                 isPinching = false;
+            }
+            if (currentTool === 'eraser') {
+                hideEraserCursor();
+            }
+        });
+
+        canvas.addEventListener('pointerenter', e => {
+            if (currentTool === 'eraser') {
+                showEraserCursor();
+                updateEraserCursor(e.clientX, e.clientY);
             }
         });
 
@@ -1425,6 +1599,7 @@ HTML = '''<!DOCTYPE html>
                 colorPickerVisible = false;
                 status.textContent = t('statusCurve');
             }
+            hideEraserCursor();
             updateButtons();
             draw();
         };
@@ -1444,6 +1619,7 @@ HTML = '''<!DOCTYPE html>
                 colorPickerVisible = false;
                 status.textContent = t('statusConic');
             }
+            hideEraserCursor();
             updateButtons();
             draw();
         };
@@ -1463,6 +1639,7 @@ HTML = '''<!DOCTYPE html>
                 colorPickerVisible = false;
                 status.textContent = t('statusPolygon');
             }
+            hideEraserCursor();
             updateButtons();
             draw();
         };
@@ -1479,6 +1656,18 @@ HTML = '''<!DOCTYPE html>
                 colorPickerDiv.classList.remove('show');
                 status.textContent = t('statusFreehandTip');
             }
+            hideEraserCursor();
+            updateButtons();
+            draw();
+        };
+
+        document.getElementById('eraser').onclick = () => {
+            currentTool = 'eraser';
+            editMode = false;
+            editingStrokeIdx = -1;
+            colorPickerDiv.classList.remove('show');
+            colorPickerVisible = false;
+            status.textContent = t('statusEraser');
             updateButtons();
             draw();
         };
